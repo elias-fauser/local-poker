@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Handy Poker Tisch</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            margin: 0;
+            padding: 15px;
+            text-align: center;
+        }
+        h1 { font-size: 1.5rem; margin-bottom: 10px; color: #d4af37; }
+        .card {
+            display: inline-block;
+            background: white;
+            color: black;
+            width: 45px;
+            height: 65px;
+            border-radius: 6px;
+            line-height: 65px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin: 4px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .card.red { color: #d32f2f; }
+        .table-box {
+            background: #0f381e;
+            border: 4px solid #8b5a2b;
+            border-radius: 15px;
+            padding: 15px;
+            margin: 15px 0;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+        }
+        .pot { font-size: 1.3rem; color: #ffeb3b; font-weight: bold; margin: 10px 0; }
+        button {
+            background-color: #d4af37;
+            color: #000;
+            border: none;
+            padding: 12px 20px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:active { background-color: #b38f27; }
+        .player-list { text-align: left; background: #1e1e1e; padding: 10px; border-radius: 8px; margin-top: 10px; }
+        .player-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #333; }
+        #login-screen { margin-top: 50px; }
+        input { padding: 10px; font-size: 1rem; border-radius: 5px; border: 1px solid #ccc; width: 80%; max-width: 300px; margin-bottom: 10px; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- Login Ansicht -->
+    <div id="login-screen">
+        <h1>♠️ Pocket Poker ♣️</h1>
+        <p>Gib deinen Namen ein, um am Tisch Platz zu nehmen:</p>
+        <input type="text" id="username" placeholder="Dein Name"><br>
+        <button onclick="joinGame()">Beitreten</button>
+    </div>
+
+    <!-- Spiel Ansicht -->
+    <div id="game-screen" class="hidden">
+        <h1>Poker Tisch</h1>
+        
+        <!-- Gemeinschaftskarten & Pot -->
+        <div class="table-box">
+            <div class="pot">Pot: <span id="pot-amount">0</span> Chips</div>
+            <div id="community-cards">
+                <!-- Flop/Turn/River landen hier -->
+            </div>
+        </div>
+
+        <!-- Eigene Handkarten -->
+        <div style="background: #222; padding: 10px; border-radius: 8px; margin: 10px 0;">
+            <p style="margin: 0 0 5px 0; font-size: 0.9rem; color: #aaa;">Deine Handkarten:</p>
+            <div id="my-cards"></div>
+            <p>Dein Guthaben: <span id="my-chips" style="color: #4caf50; font-weight: bold;">1000</span> Chips</p>
+        </div>
+
+        <!-- Aktionen / Einsätze -->
+        <div>
+            <button onclick="placeBet(50)">Setze 50</button>
+            <button onclick="placeBet(100)">Setze 100</button>
+            <button onclick="placeBet(200)">Setze 200</button>
+        </div>
+
+        <!-- Host Controls (Nur für den Ersteller sichtbar) -->
+        <div id="host-controls" class="hidden" style="margin-top: 20px; border-top: 2px dashed #444; padding-top: 10px;">
+            <p style="color: #ff9800; font-size: 0.9rem;">Host-Steuerung (Dealer)</p>
+            <button onclick="startRound()" style="background-color: #2e7d32; color: white;">Neue Runde / Pre-Flop</button>
+            <button onclick="dealFlop()" style="background-color: #1565c0; color: white;">Flop (3)</button>
+            <button onclick="dealTurn()" style="background-color: #1565c0; color: white;">Turn (1)</button>
+            <button onclick="dealRiver()" style="background-color: #1565c0; color: white;">River (1)</button>
+        </div>
+
+        <!-- Spieler Übersicht -->
+        <div class="player-list">
+            <strong>Mitspieler am Tisch:</strong>
+            <div id="players-container"></div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let isHost = false;
+
+        function joinGame() {
+            const name = document.getElementById('username').value;
+            if (!name) return alert('Bitte Namen eingeben!');
+            socket.emit('join-game', name);
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+        }
+
+        socket.on('set-host', () => {
+            isHost = true;
+            document.getElementById('host-controls').classList.remove('hidden');
+        });
+
+        socket.on('update-game', (state) => {
+            // Pot aktualisieren
+            document.getElementById('pot-amount').innerText = state.pot;
+
+            // Gemeinschaftskarten anzeigen
+            const commDiv = document.getElementById('community-cards');
+            commDiv.innerHTML = '';
+            if (state.communityCards.length === 0) {
+                commDiv.innerHTML = '<span style="color: #aaa; font-size: 0.9rem;">Warte auf Flop...</span>';
+            } else {
+                state.communityCards.forEach(card => {
+                    commDiv.innerHTML += `<div class="card ${card.color}">${card.suit}</div>`;
+                });
+            }
+
+            // Eigene Karten anzeigen
+            const myId = socket.id;
+            const me = state.players[myId];
+            const myCardsDiv = document.getElementById('my-cards');
+            myCardsDiv.innerHTML = '';
+            if (me) {
+                document.getElementById('my-chips').innerText = me.chips;
+                if (me.cards && me.cards.length > 0) {
+                    me.cards.forEach(card => {
+                        myCardsDiv.innerHTML += `<div class="card ${card.color}">${card.suit}</div>`;
+                    });
+                } else {
+                    myCardsDiv.innerHTML = '<span style="color: #aaa;">Keine Karten in dieser Runde</span>';
+                }
+            }
+
+            // Spielerliste aktualisieren
+            const playersContainer = document.getElementById('players-container');
+            playersContainer.innerHTML = '';
+            for (let id in state.players) {
+                const p = state.players[id];
+                playersContainer.innerHTML += `
+                    <div class="player-item">
+                        <span>${p.name} ${id === state.hostId ? '👑' : ''}</span>
+                        <span>${p.chips} Chips (Bet: ${p.bet})</span>
+                    </div>
+                `;
+            }
+        });
+
+        function startRound() { socket.emit('start-round'); }
+        function dealFlop() { socket.emit('deal-flop'); }
+        function dealTurn() { socket.emit('deal-turn'); }
+        function dealRiver() { socket.emit('deal-river'); }
+        function placeBet(amount) { socket.emit('place-bet', amount); }
+    </script>
+</body>
+</html>

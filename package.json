@@ -1,0 +1,21 @@
+{
+  "name": "local-poker",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/elias-fauser/local-poker#readme",
+  "bugs": {
+    "url": "https://github.com/elias-fauser/local-poker/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elias-fauser/local-poker.git"
+  },
+  "license": "ISC",
+  "author": "Elias",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  }
+}
